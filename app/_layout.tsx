@@ -3,6 +3,8 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import { ApplicationProvider, Layout, Text } from '@ui-kitten/components';
+import * as eva from '@eva-design/eva';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -19,11 +21,16 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ApplicationProvider  {...eva} theme={eva.light}>
+
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />
+      </ApplicationProvider>
+
     </ThemeProvider>
+    
   );
 }

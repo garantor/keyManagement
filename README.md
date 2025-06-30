@@ -1,50 +1,104 @@
-# Welcome to your Expo app 👋
+# Key Management App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A client-side key management application that leverages passkey technology on supported devices to securely encrypt and manage user keys, specifically blockchain private keys.
 
-## Get started
+## Overview
 
-1. Install dependencies
+This React Native application built with Expo demonstrates how to use WebAuthn passkeys with PRF (Pseudo-Random Function) extensions to securely encrypt and decrypt blockchain private keys without storing them in plaintext. The app provides a secure, passwordless authentication experience while maintaining complete client-side control over sensitive cryptographic material.
 
+## Features
+
+- **Passkey Registration**: Register users with WebAuthn passkeys for secure authentication
+- **PRF-based Key Derivation**: Uses PRF extensions to derive encryption keys from passkey assertions
+- **Client-side Encryption**: Encrypts blockchain private keys using AES-GCM with PRF-derived keys
+- **Cross-platform Support**: Built with React Native/Expo for iOS, Android, and web
+- **Modern UI**: Uses UI Kitten components with light/dark theme support
+
+## Tech Stack
+
+- **Framework**: React Native with Expo
+- **Navigation**: Expo Router with tab-based navigation
+- **UI Library**: UI Kitten with Eva Design System
+- **Authentication**: WebAuthn/FIDO2 Passkeys
+- **Encryption**: Web Crypto API (AES-GCM)
+- **Animations**: React Native Reanimated
+
+## Key Components
+
+- `app/(tabs)/index.tsx` - Main screen with passkey registration and key management
+- `components/ThemedView.tsx` - Themed container component using UI Kitten
+- `hooks/useThemeColor.ts` - Custom hook for theme-aware color management
+- `constants/Colors.ts` - Color definitions for light and dark themes
+
+## How It Works
+
+1. **User Registration**: Users register with a passkey that supports PRF extensions
+2. **Key Derivation**: The app uses PRF to derive a consistent encryption key from passkey assertions
+3. **Encryption**: Blockchain private keys are encrypted client-side using the derived key
+4. **Decryption**: When needed, users authenticate with their passkey to decrypt their keys
+
+## Security Features
+
+- No server-side key storage - all encryption happens client-side
+- PRF ensures consistent key derivation across sessions
+- AES-GCM provides authenticated encryption
+- Passkeys eliminate password-related vulnerabilities
+
+## Getting Started
+
+1. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the app
-
+2. Start the development server:
    ```bash
-   npx expo start
+   npm start
    ```
 
-In the output, you'll find options to open the app in a
+3. Choose your platform:
+   - Press `w` for web
+   - Press `i` for iOS simulator
+   - Press `a` for Android emulator
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Browser Support
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+This app requires a browser with WebAuthn PRF extension support. Currently supported by:
+- Chrome/Chromium-based browsers with experimental flags enabled
+- Safari Technology Preview (limited support)
 
-## Get a fresh project
+## Project Structure
 
-When you're ready, run:
+```
+app/
+├── (tabs)/
+│   ├── index.tsx          # Main key management screen
+│   ├── explore.tsx        # Example/documentation screen
+│   └── _layout.tsx        # Tab navigation layout
+├── _layout.tsx            # Root layout with theme providers
+└── +not-found.tsx         # 404 screen
 
-```bash
-npm run reset-project
+components/
+├── ui/                    # Platform-specific UI components
+├── ThemedText.tsx         # Themed text component
+├── ThemedView.tsx         # Themed view component
+└── ...                    # Other reusable components
+
+hooks/
+├── useColorScheme.ts      # Color scheme detection
+└── useThemeColor.ts       # Theme-aware color hook
+
+constants/
+└── Colors.ts              # Color palette definitions
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## License
 
-## Learn more
+This project is private and not licensed for public use.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Security Disclaimer
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+This is a demonstration application. For production use, ensure proper security audits, implement additional safeguards, and follow security best practices for handling
 
-## Join the community
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+NOTE: README.md generated by AI
