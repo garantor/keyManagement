@@ -1,4 +1,5 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, } from 'react-native';
+import { Text, TextProps } from '@ui-kitten/components';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 
