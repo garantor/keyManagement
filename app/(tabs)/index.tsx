@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { Button, Spinner } from '@ui-kitten/components';
 import { GetUserPasskeyAssertion, RegisterNewPasskeyWithPRF } from '@/passkeys';
 import { decryptBlockchainKey, encryptBlockchainKey } from '@/utils';
+import { getItem, setItem } from '@/storage';
 
 
 
@@ -27,6 +28,8 @@ export default function HomeScreen() {
 
 
 
+
+  
   async function handleUserReg() {
     setDisableComponent(true);
     setRegistrationLoading(true);
@@ -48,7 +51,8 @@ export default function HomeScreen() {
         console.log('Encrypting blockchain key with PRF-derived key...');
         const encryptedStrings = await encryptBlockchainKey(assertion, userData);
         console.log('Encrypted blockchain key:', encryptedStrings);
-        setBlockchainKey(encryptedStrings);
+        let encryptedKey = setItem('encryptionKey-11111', JSON.stringify(encryptedStrings));
+        setBlockchainKey(encryptedKey);
         window.alert('Blockchain key encrypted successfully!',);
       }
 
@@ -76,9 +80,21 @@ export default function HomeScreen() {
 
       console.log('User assertion with PRF:  set .....', decryptKeyAssertion);
 
+      let encryptedKey: any = await getItem('encryptionKey-11111');
+          console.log('Encrypted Wallet Mnemonic:', encryptedKey);
+      
+          let parsedKey = JSON.parse(encryptedKey);
+          console.log('Parsed Encrypted Wallet Mnemonic:', parsedKey);
+          // Here you would typically decrypt the key using the user's assertion or a secure method
+          // For demonstration, we will just log it
+          let cipherText = parsedKey.ciphertext; // Assuming ciphertext is the encrypted mnemonic
+          let iv = parsedKey.iv; // Assuming iv is the initialization vector used for encryption
+          console.log('Ciphertext:', cipherText, iv);
+      
+
       const decryptedKey = await decryptBlockchainKey(
-        blockchainKey.ciphertext,
-        blockchainKey.iv,
+        cipherText,
+       iv,
         decryptKeyAssertion
       );
       console.log('Decrypted blockchain key:', decryptedKey);

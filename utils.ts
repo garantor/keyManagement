@@ -59,7 +59,7 @@ export async function decryptBlockchainKey(
     ivBase64: string,
     prfKey: ArrayBuffer | Uint8Array
 ): Promise<string> {
-    console.log('Decrypting blockchain key with PRF-derived key...', prfKey);
+    console.log('Decrypting blockchain key with PRF-derived key...', prfKey, ciphertextBase64, ivBase64);
 
     // Decode base64 to ArrayBuffer / Uint8Array
     const ciphertext = base64ToArrayBuffer(ciphertextBase64);

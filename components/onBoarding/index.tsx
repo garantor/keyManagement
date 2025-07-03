@@ -4,6 +4,8 @@ import React from 'react'
 import { ThemedView } from '../ThemedView'
 import { ThemedText } from '../ThemedText'
 import { Button, Spinner } from '@ui-kitten/components'
+import { GenerateWalletMnemonic } from '@/blockchain/wallet';
+import { GenerateBlockchainKeyFromMnemonic } from '@/blockchain/chains';
 
 
 interface iLoginSignUpProps {
@@ -12,7 +14,18 @@ interface iLoginSignUpProps {
   disable?: boolean;
 }
 export default function LoginSignUp({ handleLogin, handleSignUp, disable }: iLoginSignUpProps) {
+  
+  async function HanldeTexttstst() {
 
+    let mnemonic = GenerateWalletMnemonic();
+    console.log('Generated Wallet Mnemonic:', mnemonic);
+
+    let data = GenerateBlockchainKeyFromMnemonic(mnemonic, 'xrpl');
+    console.log('Generated Blockchain Key:', data);
+  }
+
+  
+  
 
   return (
     <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20,}}>
@@ -38,6 +51,11 @@ export default function LoginSignUp({ handleLogin, handleSignUp, disable }: iLog
                   </Button>
                   <Button style={{ minHeight:50, minWidth: '100%' }} onPress={handleSignUp} disabled={disable}>
                     Create Wallet With Passkey
+                  </Button>
+
+
+                  <Button style={{ minHeight: 50, minWidth: '100%' }} onPress={HanldeTexttstst} disabled={disable}>
+                   Play around 
                   </Button>
 </>
           )

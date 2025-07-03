@@ -1,16 +1,14 @@
 const { getDefaultConfig } = require("expo/metro-config");
 
-module.exports = (() => {
-  const config = getDefaultConfig(__dirname);
+const config = getDefaultConfig(__dirname);
 
-  const { transformer } = config;
+// Add WASM support
+config.resolver.assetExts.push("wasm");
 
-  config.transformer = {
-    ...transformer,
-    babelTransformerPath: require.resolve(
-      "react-native-qrcode-svg/textEncodingTransformation"
-    ),
-  };
+// Add resolver for Trust Wallet Core
+config.resolver.alias = {
+  ...config.resolver.alias,
+  "@trustwallet/wallet-core": require.resolve("@trustwallet/wallet-core"),
+};
 
-  return config;
-})();
+module.exports = config;

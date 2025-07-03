@@ -6,27 +6,73 @@ import LoginSignUp from '@/components/onBoarding'
 import { ThemedText } from '@/components/ThemedText'
 import { ThemedView } from '@/components/ThemedView'
 import { GetUserPasskeyAssertion, RegisterNewPasskeyWithPRF } from '@/passkeys'
-import { setItem } from '@/storage'
+import { getItem, setItem } from '@/storage'
 import { encryptBlockchainKey } from '@/utils'
-import React from 'react'
+import React, { useEffect } from 'react'
 
 export default function Wallet() {
   const [domainSalt, setDomainSalt] = React.useState('domain-salt'); // This can be any domain-specific salt
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isAUthenticated, setIsAuthenticated] = React.useState(true);
+  const [isAUthenticated, setIsAuthenticated] = React.useState(false);
   const [passkeyCredential, setPasskeyCredential] = React.useState<any>(null);
   const [walletCreated, setWalletCreated] = React.useState<any>('');
-  const [showDashbaord, setShowDashbaord] = React.useState(true);
+  const [showDashbaord, setShowDashbaord] = React.useState(false);
 
 
 
-  function handleLogin() {
-    window.alert('Login with Passkey clicked');
+
+
+
+
+  async function handleLogin() {
+    setIsLoading(true);
+    try {
+      const credentialRequestOptions: any = {
+        challenge: Uint8Array.from(window.crypto.getRandomValues(new Uint8Array(32))),
+        timeout: 60000,
+        rpId: "localhost",
+        userVerification: "required",
+        allowCredentials: [/* Registered credential IDs */],
+      };
+
+      console.log('GetUserPasskeyAssertion :', credentialRequestOptions);
+      const loginCred: any = await navigator.credentials.get({ publicKey: credentialRequestOptions });
+      setPasskeyCredential(loginCred);
+      console.log('Login Credential:', loginCred);
+
+
+      let existingWallet = await getItem('walletList');
+      console.log('Existing Wallet:', existingWallet);
+      if (existingWallet) {
+
+        console.log('Existing wallet found, redirecting to dashboard...');
+        setWalletCreated(existingWallet);
+        setShowDashbaord(true);
+        setIsLoading(false);
+        setIsAuthenticated(true);
+        return;
+      }
+
+
+
+      setIsLoading(false)
+      setIsAuthenticated(true);
+
+      
+      
+    } catch (error: any) {
+      console.error('Error during login:', error);
+      window.alert('Error during login: ' + error.message);
+      setIsLoading(false);
+      return;
+      
+    }
     // Implement login logic here
   }
 
 
   function handleWalletCreations() {
+    setIsLoading(true);
 
     try {
 
@@ -37,7 +83,6 @@ export default function Wallet() {
         // do not save or store the returned assertion
         let userAssertion = await GetUserPasskeyAssertion(domainSalt);
         console.log('User Assertion:', userAssertion);
-
 
         let wallet = GenerateWalletMnemonic() // do not save or store the returned wallet mnemonic or send it anywhere
         console.log('Generated Wallet Mnemonic:', wallet);
@@ -94,7 +139,8 @@ export default function Wallet() {
       let reg = await RegisterNewPasskeyWithPRF(); // this register a new passkey with PRF, it does not check if PRF is supported on the device 
       console.log('Registered Passkey with PRF:', reg);
       setPasskeyCredential(reg);
-
+      setIsLoading(false)
+      setIsAuthenticated(true);
 
     } catch (error: any) {
       console.error('Error during passkey assertion:', error);
@@ -123,7 +169,7 @@ export default function Wallet() {
                 <Dashboard />
               ) :
               (
-                <CreateWallets handleButtonPress={handleWalletCreations} isLoading={true} />
+                <CreateWallets handleButtonPress={handleWalletCreations} isLoading={isLoading} />
               )
           ) :
 
