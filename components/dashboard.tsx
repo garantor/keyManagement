@@ -8,6 +8,7 @@ import { SimpleTransactionParams, SimpleTransactionSigner } from '@/blockchain/c
 import { GetUserPasskeyAssertion } from '@/passkeys'
 import { Modal as RNModal } from 'react-native'
 import { decryptData } from '@/blockchain/dataEncryption'
+import { getAllWalletBalances } from '@/blockchain/balances'
 
 type iWalletList = {
   id: string
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const [showQrCode, setShowQrCode] = React.useState<boolean>(false)
   const [loading, setLoading] = React.useState<boolean>(false)
   const [transactionSuccessful, setTransactionSuccessful] = React.useState<boolean>(false)
+  const [balancesLoading, setBalancesLoading] = React.useState<boolean>(false)
 
 
 
@@ -69,6 +71,9 @@ export default function Dashboard() {
           }))
           console.log('Mapped wallet list:', list)
           setWalletList(list)
+
+          // Fetch balances after setting the wallet list
+          await fetchBalances(parsed)
         } catch (e) {
           setWalletList(null)
         }
@@ -80,6 +85,50 @@ export default function Dashboard() {
   }, [])
 
 
+  const fetchBalances = async (walletAddresses: Record<string, string>) => {
+    setBalancesLoading(true)
+    try {
+      const balanceResult = await getAllWalletBalances({
+        stellar: walletAddresses.stellar,
+        xrpl: walletAddresses.xrpl,
+        evm: walletAddresses.evm,
+        solana: walletAddresses.solana
+      }, true)
+
+      if (balanceResult.success) {
+        setWalletList(prevList => {
+          if (!prevList) return null
+
+          return prevList.map(wallet => {
+            let balanceData
+
+            if (wallet.chain === 'evm') {
+              // For EVM, find any EVM network balance
+              balanceData = balanceResult.balances.find(b =>
+                b.address.toLowerCase() === wallet.address.toLowerCase() &&
+                (b.network === 'ethereum' || b.network.includes('evm'))
+              )
+            } else {
+              // For other chains, match by chain name
+              balanceData = balanceResult.balances.find(b =>
+                b.address.toLowerCase() === wallet.address.toLowerCase() &&
+                (b.network.includes(wallet.chain) || b.network === wallet.chain)
+              )
+            }
+
+            return {
+              ...wallet,
+              balance: balanceData ? `${parseFloat(balanceData.balance).toFixed(4)} ${balanceData.symbol}` : '0.0'
+            }
+          })
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching balances:', error)
+    } finally {
+      setBalancesLoading(false)
+    }
+  }
 
   const processTransaction = async (walletId: string) => {
     setLoading(true)
@@ -160,6 +209,16 @@ export default function Dashboard() {
     }
   }
 
+  const refreshBalances = async () => {
+    if (!walletList) return
+
+    const walletAddresses = walletList.reduce((acc, wallet) => {
+      acc[wallet.chain] = wallet.address
+      return acc
+    }, {} as Record<string, string>)
+
+    await fetchBalances(walletAddresses)
+  }
   const copyToClipboard = (address: string) => {
     Clipboard.setString(address)
     window.alert('Wallet address copied to clipboard')
@@ -219,9 +278,21 @@ export default function Dashboard() {
   return (
     <ThemedView style={{ flex: 1 }}>
 
-      <ScrollView style={{ flex: 1, }}>
+      <ScrollView style={{ flex: 1 }}>
         <ThemedView style={{ flex: 1, padding: 16, width: '100%', alignContent: 'center', alignItems: 'center' }}>
-          <Text category="h4" style={{ marginBottom: 16 }}>My Wallets</Text>
+          <ThemedView style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <Text category="h4">My Wallets</Text>
+            <Button
+              size="small"
+              appearance="ghost"
+              onPress={refreshBalances}
+              disabled={balancesLoading}
+              style={{ marginLeft: 16 }}
+            >
+              {balancesLoading ? 'Loading...' : 'Refresh'}
+            </Button>
+          </ThemedView>
+
           <FlatList
             data={walletList}
             renderItem={renderWalletItem}
