@@ -1,7 +1,7 @@
 import { GenerateBlockchainKeyFromMnemonic, ChainType } from "./chains";
 import { mnemonicToAccount } from 'viem/accounts';
 import { createWalletClient, http } from 'viem';
-import { mainnet } from 'viem/chains';
+import { mainnet, sepolia } from 'viem/chains';
 import { Wallet } from 'xrpl';
 import { Keypair, Connection } from '@solana/web3.js';
 import * as StellarSdk from '@stellar/stellar-sdk';
@@ -22,7 +22,7 @@ export class SimpleTransactionSigner {
         const account = mnemonicToAccount(params.mnemonic);
         const client = createWalletClient({
             account,
-            chain: mainnet,
+            chain: sepolia,
             transport: http(params.rpcUrl || 'evm RPC URL')
         });
 

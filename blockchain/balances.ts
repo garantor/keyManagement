@@ -130,9 +130,7 @@ export async function getEvmBalances(address: string): Promise<WalletBalance[]> 
 
             const checksumAddress = getAddress(address);
             const balance = await client.getBalance({ address: checksumAddress });
-            console.log(`Balance for ${networkName}:`, balance);
             const balanceInEth = formatEther(balance);
-            console.log(`Formatted balance for ${networkName}:`, balanceInEth);
 
             balances.push({
                 network: networkName,

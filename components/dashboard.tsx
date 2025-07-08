@@ -1,5 +1,5 @@
 import { getItem } from '@/storage'
-import { Button, Card, List, Text, Modal, Spinner } from '@ui-kitten/components'
+import { Button, Card, List, Text, Modal, Spinner, Input } from '@ui-kitten/components'
 import { get } from 'http'
 import React, { act, use, useEffect } from 'react'
 import { FlatList, ScrollView, TouchableOpacity, View, Clipboard, StyleSheet } from 'react-native'
@@ -9,6 +9,7 @@ import { GetUserPasskeyAssertion } from '@/passkeys'
 import { Modal as RNModal } from 'react-native'
 import { decryptData } from '@/blockchain/dataEncryption'
 import { getAllWalletBalances } from '@/blockchain/balances'
+import { parseEther } from 'viem'
 
 type iWalletList = {
   id: string
@@ -20,24 +21,37 @@ type iWalletList = {
 
 const CHAIN_CONFIGS = {
   xrpl: {
-    amount: '1000000', // 1 XRP in drops
-    rpcUrl: 'https://s.altnet.rippletest.net:51234',
-    sender: SimpleTransactionSigner.sendXRPL
+    amount: '1', // 1 XRP (will be converted to drops)
+    rpcUrl: 'wss://testnet.xrpl-labs.com/',
+    sender: SimpleTransactionSigner.sendXRPL,
+    convertAmount: (amount: string) => {
+      // Convert XRP to drops (multiply by 1,000,000)
+      const xrpAmount = parseFloat(amount) || 1; // Default to 1 XRP if invalid
+      return (xrpAmount * 1000000).toString();
+    }
   },
   solana: {
     amount: '0.01', // 0.01 SOL
     rpcUrl: 'https://api.testnet.solana.com',
-    sender: SimpleTransactionSigner.sendSolana
+    sender: SimpleTransactionSigner.sendSolana,
+    convertAmount: (amount: string) => amount
   },
   stellar: {
     amount: '1', // 1 XLM
     rpcUrl: 'https://horizon-testnet.stellar.org',
-    sender: SimpleTransactionSigner.sendStellar
+    sender: SimpleTransactionSigner.sendStellar,
+    convertAmount: (amount: string) => amount
   },
   evm: {
     amount: '0.01', // 0.01 ETH
-    rpcUrl: 'https://goerli.infura.io/v3/YOUR_INFURA_PROJECT_ID',
-    sender: SimpleTransactionSigner.sendEVM
+    rpcUrl: 'https://sepolia.drpc.org',
+    sender: SimpleTransactionSigner.sendEVM,
+    convertAmount: (amount: string) => {
+      // Convert ETH to Wei using BigInt to avoid precision issues
+      const ethAmount = parseFloat(amount) || 0.01; // Default to 0.01 ETH if invalid
+      return parseEther(String(ethAmount)).toString() // Ensure amount is parsed correctly
+
+    }
   }
 }
 
@@ -49,8 +63,10 @@ export default function Dashboard() {
   const [loading, setLoading] = React.useState<boolean>(false)
   const [transactionSuccessful, setTransactionSuccessful] = React.useState<boolean>(false)
   const [balancesLoading, setBalancesLoading] = React.useState<boolean>(false)
-
-
+  const [showRecipientModal, setShowRecipientModal] = React.useState<boolean>(false)
+  const [recipientAddress, setRecipientAddress] = React.useState<string>('')
+  const [transactionAmount, setTransactionAmount] = React.useState<string>('')
+  const [pendingWalletId, setPendingWalletId] = React.useState<string | null>(null)
 
 
 
@@ -130,85 +146,6 @@ export default function Dashboard() {
     }
   }
 
-  const processTransaction = async (walletId: string) => {
-    setLoading(true)
-
-    try {
-      let activeWallet = walletList?.find((wallet) => wallet.id === walletId)
-      if (!activeWallet) {
-        console.error('Wallet not found:', walletId)
-        return
-      }
-
-      console.log('Selected wallet for sending:', activeWallet)
-
-
-
-      let userAsseration = await GetUserPasskeyAssertion('domain-salt')
-      console.log('User assertion:', userAsseration)
-      if (!userAsseration) {
-        console.error('No user assertion found')
-        return
-      }
-
-      let mnemonic: any = await getItem('encryptedWalletMnemonic')
-      let parsedMnemonic = await JSON.parse(mnemonic);
-      console.log('Parsed mnemonic:', parsedMnemonic)
-
-      let mnemonicKey = await decryptData(parsedMnemonic.ciphertext, parsedMnemonic.iv, userAsseration);
-      console.log('Decrypted mnemonic key:', mnemonicKey);
-      if(!mnemonicKey) {
-        window.alert('Failed to decrypt mnemonic key')
-        setLoading(false)
-        return
-      }
-
-    
-
-   
-      const handleTransactionSuccess = (txKey: string) => {
-        console.log('Transaction signer key:', txKey)
-        setLoading(false)
-        setTransactionSuccessful(true)
-        window.alert('Transaction successful! Transaction ID: ' + txKey)
-      }
-
-      // Replace the if-else chain with this:
-      const chainConfig = CHAIN_CONFIGS[activeWallet.chain as keyof typeof CHAIN_CONFIGS]
-
-      if (!chainConfig) {
-        console.error('Unsupported chain:', activeWallet.chain)
-        setLoading(false)
-        return
-      }
-
-      const transactionParams: SimpleTransactionParams = {
-        chain: activeWallet.chain,
-        mnemonic: mnemonicKey,
-        to: activeWallet.address,
-        amount: chainConfig.amount,
-        rpcUrl: chainConfig.rpcUrl
-      }
-
-      try {
-        const txKey = await chainConfig.sender(transactionParams)
-        handleTransactionSuccess(txKey)
-      } catch (error:any) {
-        console.error('Transaction failed:', error)
-        setLoading(false)
-        window.alert('Transaction failed: ' + error.message)
-      }
-
-
-
-  
-    } catch (error) {
-      console.error('Error during send operation:', error)
-      setLoading(false)
-      return
-    }
-  }
-
   const refreshBalances = async () => {
     if (!walletList) return
 
@@ -223,6 +160,105 @@ export default function Dashboard() {
     Clipboard.setString(address)
     window.alert('Wallet address copied to clipboard')
   }
+  const processTransaction = async (walletId: string) => {
+    // Show recipient modal instead of proceeding directly
+    setPendingWalletId(walletId)
+    setShowRecipientModal(true)
+  }
+
+  const executeTransaction = async () => {
+    if (!pendingWalletId || !recipientAddress.trim()) {
+      window.alert('Please enter a valid recipient address')
+      return
+    }
+
+    setLoading(true)
+    setShowRecipientModal(false)
+
+    try {
+      let activeWallet = walletList?.find((wallet) => wallet.id === pendingWalletId)
+      if (!activeWallet) {
+        console.error('Wallet not found:', pendingWalletId)
+        return
+      }
+
+      console.log('Selected wallet for sending:', activeWallet)
+
+      let userAsseration = await GetUserPasskeyAssertion('domain-salt')
+      console.log('User assertion:', userAsseration)
+      if (!userAsseration) {
+        console.error('No user assertion found')
+        return
+      }
+
+      let mnemonic: any = await getItem('encryptedWalletMnemonic')
+      let parsedMnemonic = await JSON.parse(mnemonic);
+      console.log('Parsed mnemonic:', parsedMnemonic)
+
+      let mnemonicKey = await decryptData(parsedMnemonic.ciphertext, parsedMnemonic.iv, userAsseration);
+      console.log('Decrypted mnemonic key:', mnemonicKey);
+      if (!mnemonicKey) {
+        window.alert('Failed to decrypt mnemonic key')
+        setLoading(false)
+        return
+      }
+
+      const handleTransactionSuccess = (txKey: string) => {
+        console.log('Transaction signer key:', txKey)
+        setLoading(false)
+        setTransactionSuccessful(true)
+        window.alert('Transaction successful! Transaction ID: ' + txKey)
+        // Reset form
+        setRecipientAddress('')
+        setTransactionAmount('')
+        setPendingWalletId(null)
+      }
+
+      const chainConfig = CHAIN_CONFIGS[activeWallet.chain as keyof typeof CHAIN_CONFIGS]
+
+      if (!chainConfig) {
+        console.error('Unsupported chain:', activeWallet.chain)
+        setLoading(false)
+        return
+      }
+
+      // Convert the amount using the chain-specific converter
+      const rawAmount = transactionAmount || chainConfig.amount
+      const convertedAmount = chainConfig.convertAmount(rawAmount)
+
+      console.log(`Converting amount for ${activeWallet.chain}: ${rawAmount} -> ${convertedAmount}`)
+
+      const transactionParams: SimpleTransactionParams = {
+        chain: activeWallet.chain,
+        mnemonic: mnemonicKey,
+        to: recipientAddress.trim(),
+        amount: convertedAmount, // Use converted amount
+        rpcUrl: chainConfig.rpcUrl
+      }
+
+      try {
+        const txKey = await chainConfig.sender(transactionParams)
+        handleTransactionSuccess(txKey)
+      } catch (error: any) {
+        console.error('Transaction failed:', error)
+        setLoading(false)
+        window.alert('Transaction failed: ' + error.message)
+      }
+
+    } catch (error) {
+      console.error('Error during send operation:', error)
+      setLoading(false)
+      return
+    }
+  }
+
+  const cancelTransaction = () => {
+    setShowRecipientModal(false)
+    setRecipientAddress('')
+    setTransactionAmount('')
+    setPendingWalletId(null)
+  }
+
 
   const renderWalletItem = ({ item }: { item: any }) => (
     <Card style={{
@@ -303,27 +339,70 @@ export default function Dashboard() {
           />
         </ThemedView>
       </ScrollView>
-      {
-        loading === true ?
+      <RNModal
+        visible={showRecipientModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={cancelTransaction}
+      >
+        <View style={[styles.backdrop, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
+          <View style={styles.modalContent}>
+            <Text category="h5" style={{ marginBottom: 20, textAlign: 'center' }}>
+              Send Transaction
+            </Text>
 
+            <Input
+              placeholder="Recipient Address"
+              value={recipientAddress}
+              onChangeText={setRecipientAddress}
+              style={{ marginBottom: 16 }}
+              multiline={true}
+              textStyle={{ minHeight: 60 }}
+            />
 
-          // Replace UI Kitten Modal with React Native Modal
-          <RNModal
-            visible={loading}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setLoading(false)}
-          >
-            <View style={[styles.backdrop, { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }]}>
-              <Spinner size="giant" />
-              <Button onPress={() => setLoading(false)}>
-                Cancel Transaction
+            <Input
+              placeholder={`Amount (optional, default: ${pendingWalletId ? CHAIN_CONFIGS[walletList?.find(w => w.id === pendingWalletId)?.chain as keyof typeof CHAIN_CONFIGS]?.amount : ''})`}
+              value={transactionAmount}
+              onChangeText={setTransactionAmount}
+              style={{ marginBottom: 20 }}
+            />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', width: '100%' }}>
+              <Button
+                appearance="outline"
+                onPress={cancelTransaction}
+                style={{ flex: 1, marginRight: 8 }}
+              >
+                Cancel
               </Button>
-
+              <Button
+                onPress={executeTransaction}
+                disabled={!recipientAddress.trim()}
+                style={{ flex: 1, marginLeft: 8 }}
+              >
+                Send
+              </Button>
             </View>
-          </RNModal>
-          : null
-      }
+          </View>
+        </View>
+      </RNModal>
+
+      {/* Loading Modal */}
+      {loading && (
+        <RNModal
+          visible={loading}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setLoading(false)}
+        >
+          <View style={[styles.backdrop, { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }]}>
+            <Spinner size="giant" />
+            <Button onPress={() => setLoading(false)}>
+              Cancel Transaction
+            </Button>
+          </View>
+        </RNModal>
+      )}
 
 
     </ThemedView>
@@ -338,5 +417,13 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    width: '90%',
+    maxWidth: 400,
   },
 });
