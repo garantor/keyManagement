@@ -5,6 +5,7 @@ import { mainnet } from 'viem/chains';
 import { Wallet } from 'xrpl';
 import { Keypair, Connection } from '@solana/web3.js';
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { Buffer } from 'buffer';
 
 export interface SimpleTransactionParams {
     mnemonic: string;
@@ -49,6 +50,7 @@ export class SimpleTransactionSigner {
 
         const response = await client.submitAndWait(payment, { wallet });
         await client.disconnect();
+        console.log('XRPL transaction response:', response);
 
         return response.result.hash;
     }

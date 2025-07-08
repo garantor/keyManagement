@@ -7,7 +7,7 @@ import { ThemedView } from '@/components/ThemedView';
 import React, { useState } from 'react';
 import { Button, Spinner } from '@ui-kitten/components';
 import { GetUserPasskeyAssertion, RegisterNewPasskeyWithPRF } from '@/passkeys';
-import { decryptBlockchainKey, encryptBlockchainKey } from '@/utils';
+import { decryptData, encryptData } from '@/blockchain/dataEncryption';
 import { getItem, setItem } from '@/storage';
 
 
@@ -49,7 +49,7 @@ export default function HomeScreen() {
       if (assertion) {
         let userData = 'Super Secret Blockchain Key';
         console.log('Encrypting blockchain key with PRF-derived key...');
-        const encryptedStrings = await encryptBlockchainKey(assertion, userData);
+        const encryptedStrings = await encryptData(assertion, userData);
         console.log('Encrypted blockchain key:', encryptedStrings);
         let encryptedKey = setItem('encryptionKey-11111', JSON.stringify(encryptedStrings));
         setBlockchainKey(encryptedKey);
@@ -92,7 +92,7 @@ export default function HomeScreen() {
           console.log('Ciphertext:', cipherText, iv);
       
 
-      const decryptedKey = await decryptBlockchainKey(
+      const decryptedKey = await decryptData(
         cipherText,
        iv,
         decryptKeyAssertion

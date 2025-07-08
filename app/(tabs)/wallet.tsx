@@ -7,7 +7,7 @@ import { ThemedText } from '@/components/ThemedText'
 import { ThemedView } from '@/components/ThemedView'
 import { GetUserPasskeyAssertion, RegisterNewPasskeyWithPRF } from '@/passkeys'
 import { getItem, setItem } from '@/storage'
-import { encryptBlockchainKey } from '@/utils'
+import { encryptData } from '@/blockchain/dataEncryption'
 import React, { useEffect } from 'react'
 
 export default function Wallet() {
@@ -97,7 +97,7 @@ export default function Wallet() {
           throw new Error('Failed to generate wallet list from mnemonic');
         }
         //encrypt the wallet mnemonic with the user assertion
-        const encryptedMnemonic = await encryptBlockchainKey(userAssertion, wallet);
+        const encryptedMnemonic = await encryptData(userAssertion, wallet);
         console.log('Encrypted Wallet Mnemonic:', encryptedMnemonic);
         // now store the encrypted mnemonic securely, e.g., in a secure storage or database
         let saveData = await setItem('encryptedWalletMnemonic', JSON.stringify(encryptedMnemonic));
@@ -155,11 +155,8 @@ export default function Wallet() {
   }
 
   return (
-    <ThemedView style={{ flex: 1, }}>
+    <ThemedView style={{ flex: 1, alignSelf:'center',  padding: 20, minWidth: '100%' }}>
 
-      <ThemedView style={{ justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <ThemedText category='h1'>Wallet Screen</ThemedText>
-      </ThemedView>
       {
         isAUthenticated ?
           (

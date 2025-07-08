@@ -12,12 +12,12 @@ interface iCreateWallet {
 export default function CreateWallets({ handleButtonPress, isLoading }: iCreateWallet) {
   return (
 
-    <ThemedView style={{flex:1,  alignItems: 'center', minWidth: '100%', }}>
+    <ThemedView style={{flex:1,  alignItems: 'center', minWidth: '100%',  }}>
         <ThemedText category="s1" style={{ marginBottom: 16 }}>
         Create Wallets
         </ThemedText>
         <Divider style={{ width: '100%', marginVertical: 10 }} />
-          <ThemedView style={{ flex: 1, backgroundColor: 'red', alignItems: 'center', padding: 20, width: '100%', }}>
+          <ThemedView style={{ flex: 1,  alignItems: 'center', padding: 20, width: '100%', }}>
               <ThemedView style={{ flex: 1, width: '100%', padding:20, borderRadius:10, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
                {isLoading === true ? 
                

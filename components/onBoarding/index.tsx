@@ -28,8 +28,8 @@ export default function LoginSignUp({ handleLogin, handleSignUp, disable }: iLog
   
 
   return (
-    <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20,}}>
-      <ThemedView style={{ flex:1, padding: 20, borderRadius: 10, }}>
+    <ThemedView style={{ flex: 1, minWidth:'100%', justifyContent: 'center', alignItems: 'center', padding: 20, }}>
+      <ThemedView style={{ flex:1, padding: 20, borderRadius: 10,  }}>
         <ThemedText category='h2' style={{textAlign:'center'}}>Login or Sign Up</ThemedText>
         <ThemedView style={{flex:1, marginTop:20, justifyContent: 'center', alignItems: 'center', padding: 20, gap:20 }}>
           {/* <ThemedText category='h1'>Welcome to Key Management</ThemedText> */}
@@ -45,7 +45,7 @@ export default function LoginSignUp({ handleLogin, handleSignUp, disable }: iLog
           :
 
           (
-<>
+<ThemedView style={{ flex: 1, gap:20,  justifyContent: 'center', alignItems: 'center', padding: 20, minWidth:'100%' }}>
                   <Button style={{minHeight:50,  minWidth: '100%' }} onPress={handleLogin} disabled={disable}>
                     Login With Passkey
                   </Button>
@@ -54,10 +54,7 @@ export default function LoginSignUp({ handleLogin, handleSignUp, disable }: iLog
                   </Button>
 
 
-                  <Button style={{ minHeight: 50, minWidth: '100%' }} onPress={HanldeTexttstst} disabled={disable}>
-                   Play around 
-                  </Button>
-</>
+</ThemedView>
           )
         
 

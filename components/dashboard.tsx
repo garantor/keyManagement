@@ -1,12 +1,13 @@
 import { getItem } from '@/storage'
-import { Button, Card, List, Text, Modal } from '@ui-kitten/components'
+import { Button, Card, List, Text, Modal, Spinner } from '@ui-kitten/components'
 import { get } from 'http'
-import React, { use, useEffect } from 'react'
-import { FlatList, ScrollView, TouchableOpacity, View, Clipboard } from 'react-native'
+import React, { act, use, useEffect } from 'react'
+import { FlatList, ScrollView, TouchableOpacity, View, Clipboard, StyleSheet } from 'react-native'
 import { ThemedView } from './ThemedView'
 import { SimpleTransactionParams, SimpleTransactionSigner } from '@/blockchain/chainSigner'
 import { GetUserPasskeyAssertion } from '@/passkeys'
-import { decryptBlockchainKey } from '@/utils'
+import { Modal as RNModal } from 'react-native'
+import { decryptData } from '@/blockchain/dataEncryption'
 
 type iWalletList = {
   id: string
@@ -16,10 +17,36 @@ type iWalletList = {
   address: string
 }
 
+const CHAIN_CONFIGS = {
+  xrpl: {
+    amount: '1000000', // 1 XRP in drops
+    rpcUrl: 'https://s.altnet.rippletest.net:51234',
+    sender: SimpleTransactionSigner.sendXRPL
+  },
+  solana: {
+    amount: '0.01', // 0.01 SOL
+    rpcUrl: 'https://api.testnet.solana.com',
+    sender: SimpleTransactionSigner.sendSolana
+  },
+  stellar: {
+    amount: '1', // 1 XLM
+    rpcUrl: 'https://horizon-testnet.stellar.org',
+    sender: SimpleTransactionSigner.sendStellar
+  },
+  evm: {
+    amount: '0.01', // 0.01 ETH
+    rpcUrl: 'https://goerli.infura.io/v3/YOUR_INFURA_PROJECT_ID',
+    sender: SimpleTransactionSigner.sendEVM
+  }
+}
+
+
 export default function Dashboard() {
   const [walletList, setWalletList] = React.useState<any[] | null>(null)
   const [selectedWallet, setSelectedWallet] = React.useState<string | null>(null)
   const [showQrCode, setShowQrCode] = React.useState<boolean>(false)
+  const [loading, setLoading] = React.useState<boolean>(false)
+  const [transactionSuccessful, setTransactionSuccessful] = React.useState<boolean>(false)
 
 
 
@@ -37,7 +64,7 @@ export default function Dashboard() {
             id: (index + 1).toString(),
             name: `${chain.charAt(0).toUpperCase() + chain.slice(1)} Wallet`,
             chain: chain,
-            balance:'0.0',
+            balance: '0.0',
             address: address
           }))
           console.log('Mapped wallet list:', list)
@@ -54,55 +81,83 @@ export default function Dashboard() {
 
 
 
-  const handleSend = async (walletId: string) => {
-    let activeWallet = walletList?.find((wallet) => wallet.id === walletId)
-    if (!activeWallet) {
-      console.error('Wallet not found:', walletId)
-      return
-    }
+  const processTransaction = async (walletId: string) => {
+    setLoading(true)
 
-    console.log('Selected wallet for sending:', activeWallet)
- 
+    try {
+      let activeWallet = walletList?.find((wallet) => wallet.id === walletId)
+      if (!activeWallet) {
+        console.error('Wallet not found:', walletId)
+        return
+      }
 
-
-    let userAsseration = await GetUserPasskeyAssertion('domain-salt')
-    console.log('User assertion:', userAsseration)
-    if (!userAsseration) {
-      console.error('No user assertion found')
-      return
-    }
-
-    let mnemonic:any = await getItem('encryptedWalletMnemonic')
-    let parsedMnemonic = await JSON.parse(mnemonic);
-    console.log('Parsed mnemonic:', parsedMnemonic)
-
-    let mnemonicKey = await decryptBlockchainKey(parsedMnemonic.ciphertext, parsedMnemonic.iv, userAsseration);
-    console.log('Decrypted mnemonic key:', mnemonicKey);
+      console.log('Selected wallet for sending:', activeWallet)
 
 
-    let tParams:SimpleTransactionParams = {
-      chain: 'stellar',
-      mnemonic: mnemonicKey,
-      to: 'GATU7LRPTNGZQOLRXILPHTU5IQYQ2DEL6C7AU5OYTVC74IDJUKNZE6NA',
-      amount: '1',
-    }
 
-    let txKey = await SimpleTransactionSigner.sendStellar(tParams);
-    console.log('Transaction signer key:', txKey);
+      let userAsseration = await GetUserPasskeyAssertion('domain-salt')
+      console.log('User assertion:', userAsseration)
+      if (!userAsseration) {
+        console.error('No user assertion found')
+        return
+      }
+
+      let mnemonic: any = await getItem('encryptedWalletMnemonic')
+      let parsedMnemonic = await JSON.parse(mnemonic);
+      console.log('Parsed mnemonic:', parsedMnemonic)
+
+      let mnemonicKey = await decryptData(parsedMnemonic.ciphertext, parsedMnemonic.iv, userAsseration);
+      console.log('Decrypted mnemonic key:', mnemonicKey);
+      if(!mnemonicKey) {
+        window.alert('Failed to decrypt mnemonic key')
+        setLoading(false)
+        return
+      }
+
+    
 
    
-    // Add send logic here
-  }
+      const handleTransactionSuccess = (txKey: string) => {
+        console.log('Transaction signer key:', txKey)
+        setLoading(false)
+        setTransactionSuccessful(true)
+        window.alert('Transaction successful! Transaction ID: ' + txKey)
+      }
 
-  const handleReceive = (walletId: string) => {
-    console.log('Receive to wallet:', walletId)
-    setSelectedWallet(walletId)
-    setShowQrCode(true)
-  }
+      // Replace the if-else chain with this:
+      const chainConfig = CHAIN_CONFIGS[activeWallet.chain as keyof typeof CHAIN_CONFIGS]
 
-  const closeQrCode = () => {
-    setShowQrCode(false)
-    setSelectedWallet(null)
+      if (!chainConfig) {
+        console.error('Unsupported chain:', activeWallet.chain)
+        setLoading(false)
+        return
+      }
+
+      const transactionParams: SimpleTransactionParams = {
+        chain: activeWallet.chain,
+        mnemonic: mnemonicKey,
+        to: activeWallet.address,
+        amount: chainConfig.amount,
+        rpcUrl: chainConfig.rpcUrl
+      }
+
+      try {
+        const txKey = await chainConfig.sender(transactionParams)
+        handleTransactionSuccess(txKey)
+      } catch (error:any) {
+        console.error('Transaction failed:', error)
+        setLoading(false)
+        window.alert('Transaction failed: ' + error.message)
+      }
+
+
+
+  
+    } catch (error) {
+      console.error('Error during send operation:', error)
+      setLoading(false)
+      return
+    }
   }
 
   const copyToClipboard = (address: string) => {
@@ -116,6 +171,11 @@ export default function Dashboard() {
       borderRadius: 12,
       flex: 1,
       maxWidth: '45%',
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2
     }}>
       <ThemedView style={{ padding: 16 }}>
         <Text category="h6">{item.name}</Text>
@@ -132,18 +192,18 @@ export default function Dashboard() {
           <Button
             size="small"
             style={{ flex: 1, marginRight: 4 }}
-            onPress={() => handleSend(item.id)}
+            onPress={() => processTransaction(item.id)}
           >
             Send
           </Button>
-          <Button
+          {/* <Button
             size="small"
             style={{ flex: 1, marginHorizontal: 4 }}
             appearance="outline"
             onPress={() => handleReceive(item.id)}
           >
             Receive
-          </Button>
+          </Button> */}
           <Button
             size="small"
             style={{ flex: 1, marginLeft: 4 }}
@@ -159,43 +219,53 @@ export default function Dashboard() {
   return (
     <ThemedView style={{ flex: 1 }}>
 
-      <ScrollView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
-        <ThemedView style={{flex:1, padding: 16, width: '100%' }}>
+      <ScrollView style={{ flex: 1, }}>
+        <ThemedView style={{ flex: 1, padding: 16, width: '100%', alignContent: 'center', alignItems: 'center' }}>
           <Text category="h4" style={{ marginBottom: 16 }}>My Wallets</Text>
           <FlatList
             data={walletList}
             renderItem={renderWalletItem}
             numColumns={2}
             scrollEnabled={false}
-            contentContainerStyle={{flex:1, alignItems: 'stretch' }}
+            contentContainerStyle={{ flex: 1, alignItems: 'stretch' }}
             columnWrapperStyle={{ justifyContent: 'space-between' }}
           />
         </ThemedView>
       </ScrollView>
+      {
+        loading === true ?
 
-      <Modal
-        visible={showQrCode}
-        backdropStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-        onBackdropPress={closeQrCode}
-      >
-        <Card disabled={true} style={{ borderRadius: 12, backgroundColor:'red' }}>
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text category="h6" style={{ marginBottom: 16 }}>
-              Receive Payment
-            </Text>
-            
-            <Button
-              size="small"
-              appearance="outline"
-              style={{ marginTop: 16 }}
-              onPress={closeQrCode}
-            >
-              Close
-            </Button>
-          </View>
-        </Card>
-      </Modal>
+
+          // Replace UI Kitten Modal with React Native Modal
+          <RNModal
+            visible={loading}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setLoading(false)}
+          >
+            <View style={[styles.backdrop, { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }]}>
+              <Spinner size="giant" />
+              <Button onPress={() => setLoading(false)}>
+                Cancel Transaction
+              </Button>
+
+            </View>
+          </RNModal>
+          : null
+      }
+
+
     </ThemedView>
 
   )
 }
+
+
+const styles = StyleSheet.create({
+  container: {
+    minHeight: 192,
+  },
+  backdrop: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+});
