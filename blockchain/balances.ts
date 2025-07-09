@@ -3,6 +3,7 @@ import { Horizon } from '@stellar/stellar-sdk';
 import { createPublicClient, formatEther, getAddress, http } from 'viem';
 import { arbitrum, bsc, mainnet, polygon, sepolia } from 'viem/chains';
 import { Client as XrplClient } from 'xrpl';
+import { NETWORK_CONFIGS } from './utils';
 
 // Types for balance responses
 export interface WalletBalance {
@@ -18,26 +19,6 @@ export interface BalanceResult {
     balances: WalletBalance[];
     errors: string[];
 }
-
-// Network configurations
-const NETWORK_CONFIGS = {
-    stellar: {
-        horizon: 'https://horizon.stellar.org',
-        testnet: 'https://horizon-testnet.stellar.org'
-    },
-    xrpl: {
-        mainnet: 'wss://xrplcluster.com',
-        testnet: 'wss://s.altnet.rippletest.net:51233'
-    },
-    solana: {
-        mainnet: 'https://api.mainnet-beta.solana.com',
-        devnet: 'https://api.devnet.solana.com'
-    },
-    evm: {
-        ethereum: { chain: sepolia, rpc: 'https://gateway.tenderly.co/public/sepolia' },
-      
-    }
-};
 
 /**
  * Get Stellar wallet balance
@@ -84,6 +65,7 @@ export async function getXrplBalance(
         client = new XrplClient(serverUrl);
 
         await client.connect();
+        client.fundWallet()
 
         const response = await client.request({
             command: 'account_info',

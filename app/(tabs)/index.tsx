@@ -11,8 +11,8 @@ import { decryptData, encryptData } from '@/blockchain/dataEncryption';
 import storage, { getItem, setItem } from '@/storage';
 import { decryptDataWithTrustWalletCore, generateEncryptedHexMnemonic, getSupportedBlockchainAddress } from '@/blockchain/trustWallet'; // Ensure this is the correct import path for your Trust Wallet SDK initialization
 // Add these imports at the top
-import { FlatList, ActivityIndicator } from 'react-native';
-import { assert } from 'console';
+import { FlatList, ActivityIndicator, Alert } from 'react-native';
+import { fundTestnetWallets, FundingResult } from '@/blockchain/fundingWallet';
 
 
 
@@ -36,6 +36,7 @@ export default function HomeScreen() {
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [passkeyRegistered, setPasskeyRegistered] = useState(false);
   const [blockchainRegistered, setBlockchainRegistered] = useState(false);
+  const [fundingLoading, setFundingLoading] = useState<Record<string, boolean>>({});
 
   // Add this function to load addresses when authenticated
   const loadUserAddresses = async (PRF?: any) => {
@@ -249,7 +250,58 @@ export default function HomeScreen() {
     }
   }
 
+  const handleFundWallet = async (blockchain: string, address: string) => {
+    setFundingLoading(prev => ({ ...prev, [blockchain]: true }));
 
+    try {
+      let results: FundingResult[] = [];
+
+      // Map blockchain names to funding function parameters
+      const fundingMap: Record<string, string> = {
+        'stellar': 'stellar',
+        'xrpl': 'xrpl',
+        'solana': 'solana',
+        'ethereum': 'evm'
+      };
+
+      const networkKey = fundingMap[blockchain.toLowerCase()];
+      if (networkKey) {
+        const walletAddresses = { [networkKey]: address };
+        results = await fundTestnetWallets(walletAddresses);
+      }
+
+      if (results.length > 0 && results[0].success) {
+        Alert.alert(
+          'Funding Successful',
+          `Successfully funded ${blockchain.toUpperCase()} wallet with ${results[0].amount}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Funding Failed',
+          results[0]?.error || 'Failed to fund wallet',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        'Funding Error',
+        error instanceof Error ? error.message : 'Unknown error occurred',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setFundingLoading(prev => ({ ...prev, [blockchain]: false }));
+    }
+  };
+
+  // Add send function placeholder
+  const handleSendTokens = (blockchain: string, address: string) => {
+    Alert.alert(
+      'Send Tokens',
+      `Send tokens feature for ${blockchain.toUpperCase()} will be implemented soon.`,
+      [{ text: 'OK' }]
+    );
+  };
 
   return (
     <ParallaxScrollView
@@ -276,7 +328,7 @@ export default function HomeScreen() {
                 <FlatList
                   data={Object.entries(userAddresses)}
                   keyExtractor={([blockchain]) => blockchain}
-                  numColumns={3}
+                  numColumns={2}
                   columnWrapperStyle={styles.row}
                   renderItem={({ item: [blockchain, address] }) => (
                     <ThemedView style={styles.addressItem}>
@@ -286,6 +338,32 @@ export default function HomeScreen() {
                       <ThemedText style={styles.addressText} numberOfLines={2} ellipsizeMode="middle">
                         {address}
                       </ThemedText>
+
+                      {/* Action buttons */}
+                      <ThemedView style={styles.buttonContainer}>
+                        <Button
+                          size="tiny"
+                          status="success"
+                          onPress={() => handleFundWallet(blockchain, address)}
+                          disabled={fundingLoading[blockchain]}
+                          style={styles.actionButton}
+                        >
+                          {fundingLoading[blockchain] ? (
+                            <ActivityIndicator size="small" color="white" />
+                          ) : (
+                            <ThemedText style={styles.buttonText}>Fund</ThemedText>
+                          )}
+                        </Button>
+
+                        <Button
+                          size="tiny"
+                          status="info"
+                          onPress={() => handleSendTokens(blockchain, address)}
+                          style={styles.actionButton}
+                        >
+                          <ThemedText style={styles.buttonText}>Send</ThemedText>
+                        </Button>
+                      </ThemedView>
                     </ThemedView>
                   )}
                   style={styles.addressList}
@@ -429,33 +507,8 @@ const styles = StyleSheet.create({
   addressList: {
     flex: 1,
   },
-  row: {
-    justifyContent: 'space-around',
-    marginBottom: 10,
-  },
-  addressItem: {
-    flex: 1,
-    margin: 5,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    minHeight: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  blockchainName: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#007AFF',
-    textAlign: 'center',
-    fontSize: 12,
-  },
-  addressText: {
-    fontFamily: 'monospace',
-    fontSize: 12,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
+
+
   refreshButton: {
     marginTop: 15,
     marginHorizontal: 20,
@@ -469,5 +522,51 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.7,
     marginTop: 10,
+  },
+
+
+  row: {
+    justifyContent: 'space-around',
+    marginBottom: 10,
+  },
+  addressItem: {
+    flex: 1,
+    margin: 5,
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    minHeight: 140,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  blockchainName: {
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#007AFF',
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  addressText: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    textAlign: 'center',
+    fontWeight: '500',
+    marginBottom: 10,
+    flex: 1,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  actionButton: {
+    flex: 1,
+    minHeight: 32,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
