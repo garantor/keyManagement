@@ -5,10 +5,10 @@ const config = getDefaultConfig(__dirname);
 // Add WASM support
 config.resolver.assetExts.push("wasm");
 
-// Add resolver for Trust Wallet Core
-config.resolver.alias = {
-  ...config.resolver.alias,
-  "@trustwallet/wallet-core": require.resolve("@trustwallet/wallet-core"),
+// Ensure WASM files are treated as assets
+config.transformer = {
+  ...config.transformer,
+  assetPlugins: ["expo-asset/tools/hashAssetFiles"],
 };
 
 module.exports = config;
