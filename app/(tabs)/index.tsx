@@ -1,18 +1,19 @@
 import { Image } from 'expo-image';
 import { StyleSheet } from 'react-native';
 
+import { decryptDataWithTrustWalletCore, generateEncryptedHexMnemonic, getSupportedBlockchainAddress } from '@/blockchain/trustWallet'; // Ensure this is the correct import path for your Trust Wallet SDK initialization
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import React, { useEffect, useState } from 'react';
-import { Button, Spinner } from '@ui-kitten/components';
 import { GetUserPasskeyAssertion, RegisterNewPasskeyWithPRF } from '@/passkeys';
-import { decryptData, encryptData } from '@/blockchain/dataEncryption';
 import storage, { getItem, setItem } from '@/storage';
-import { decryptDataWithTrustWalletCore, generateEncryptedHexMnemonic, getSupportedBlockchainAddress } from '@/blockchain/trustWallet'; // Ensure this is the correct import path for your Trust Wallet SDK initialization
+import { Button } from '@ui-kitten/components';
+import React, { useEffect, useState } from 'react';
 // Add these imports at the top
-import { FlatList, ActivityIndicator, Alert } from 'react-native';
-import { fundTestnetWallets, FundingResult } from '@/blockchain/fundingWallet';
+import { FundingResult, fundTestnetWallets } from '@/blockchain/fundingWallet';
+import { sendTokens } from '@/blockchain/Transactions/stellarTransactions';
+import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, View } from 'react-native';
+import { sendTokensUnified } from '@/blockchain/Transactions/unifiedSigner';
 
 
 
@@ -37,9 +38,32 @@ export default function HomeScreen() {
   const [passkeyRegistered, setPasskeyRegistered] = useState(false);
   const [blockchainRegistered, setBlockchainRegistered] = useState(false);
   const [fundingLoading, setFundingLoading] = useState<Record<string, boolean>>({});
+  const [sendModalVisible, setSendModalVisible] = useState(false);
+  const [sendForm, setSendForm] = useState({
+    blockchain: '',
+    fromAddress: '',
+    toAddress: '',
+    amount: '',
+  });
+  const [sendingTransaction, setSendingTransaction] = useState(false);
+
+
+
 
   // Add this function to load addresses when authenticated
   const loadUserAddresses = async (PRF?: any) => {
+    // let tx:any = {
+    //   network: "stellar", // Example network, you can change this based on your needs
+    //   toAddress:'GAIH3ULLFQ4DGSECF2AR555KZ4KNDGEKN4AFI4SU2M7B43MGK3QJZNSR',
+    //   fromAddress: 'GDIZ6KW5XKQCUSZU5FDWPQ42JIMTTANJ5BSB4GHLKB4U53R7MTDX2DTZ',
+    //   amount: '2',
+    //   testnet: true,
+
+    // } 
+    // let xtHash = await sendTokens(tx, new Uint8Array, 'b')
+    // console.log('Transaction Hash:', xtHash);
+
+
     console.log('Loading user addresses with PRF:', PRF);
     console.log('Blockchain Key:', blockchainKey, 'Type:', typeof blockchainKey, isAUthenticated);
     if (!isAUthenticated || !blockchainKey) return;
@@ -191,19 +215,7 @@ export default function HomeScreen() {
     }
   }
 
-  // Updated handleTrust function to combine both steps (for backward compatibility)
-  async function handleTrust() {
-    console.log('Starting complete registration process...');
-    try {
-      await handlePasskeyRegistration();
-      if (passkeyRegistered) {
-        await handleBlockchainRegistration();
-      }
-    } catch (error: any) {
-      console.error('Error during complete registration:', error);
-      window.alert('Error during registration: ' + error.message);
-    }
-  }
+
 
   async function handleDecryptTrust() {
     console.log('Trust Wallet SDK initialized');
@@ -295,13 +307,91 @@ export default function HomeScreen() {
   };
 
   // Add send function placeholder
+
+
   const handleSendTokens = (blockchain: string, address: string) => {
-    Alert.alert(
-      'Send Tokens',
-      `Send tokens feature for ${blockchain.toUpperCase()} will be implemented soon.`,
-      [{ text: 'OK' }]
-    );
+    setSendForm({
+      blockchain,
+      fromAddress: address,
+      toAddress: '',
+      amount: '',
+      
+    });
+    setSendModalVisible(true);
   };
+
+  const handleSendTransaction = async () => {
+    if (!sendForm.toAddress || !sendForm.amount) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setSendingTransaction(true);
+    try {
+      // Get user assertion with PRF to decrypt private key
+      const assertion = await GetUserPasskeyAssertion(backendSalt);
+
+      if (assertion) {
+        let keyArray: Uint8Array;
+        if (assertion instanceof ArrayBuffer) {
+          keyArray = new Uint8Array(assertion);
+        } else if (assertion instanceof Uint8Array) {
+          keyArray = assertion;
+        } else {
+          throw new Error('Invalid PRF key format');
+        }
+
+        // Get encrypted data from storage and decrypt
+        const userData: any = await storage.getItem('encryptionKey-trustwallet');
+        const userDataParsed = JSON.parse(userData || '{}');
+        console.log('User Data from storage:', userDataParsed);
+
+        // Get private key for the specific blockchain
+        // const privateKey = await getPrivateKeyFromMnemonic(keyArray, userDataParsed, sendForm.blockchain);
+
+        // Prepare transaction object
+        const transaction: any = {
+          network: sendForm.blockchain,
+          toAddress: sendForm.toAddress,
+          fromAddress: sendForm.fromAddress,
+          amount: sendForm.amount,
+          testnet: true, // Set to false for mainnet
+        };
+
+        console.log('Transaction object:', transaction);
+
+        // Send the transaction
+        const txHash = await sendTokensUnified(transaction, keyArray, userDataParsed);
+        setSendModalVisible(false)
+        console.log('Transaction Hash:', txHash);
+
+        window.alert(
+          `Transaction hash: ${txHash.transactionId}`,
+
+        );
+      }
+    } catch (error) {
+      console.error('Send transaction error:', error);
+      Alert.alert(
+        'Transaction Failed',
+        error instanceof Error ? error.message : 'Unknown error occurred',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setSendingTransaction(false);
+    }
+  };
+
+  const closeSendModal = () => {
+    setSendModalVisible(false);
+    setSendForm({
+      blockchain: '',
+      fromAddress: '',
+      toAddress: '',
+      amount: '',
+    });
+  };
+
 
   return (
     <ParallaxScrollView
@@ -469,6 +559,67 @@ export default function HomeScreen() {
           </ThemedView>
         )
       }
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={sendModalVisible}
+        onRequestClose={closeSendModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              Send {sendForm.blockchain.toUpperCase()} Tokens
+            </Text>
+
+            <Text style={styles.modalLabel}>From Address:</Text>
+            <Text style={styles.fromAddress}>{sendForm.fromAddress}</Text>
+
+            <Text style={styles.modalLabel}>Recipient Address:</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter recipient address"
+              value={sendForm.toAddress}
+              onChangeText={(text) => setSendForm(prev => ({ ...prev, toAddress: text }))}
+              multiline
+              numberOfLines={2}
+            />
+
+            <Text style={styles.modalLabel}>Amount:</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter amount to send"
+              value={sendForm.amount}
+              onChangeText={(text) => setSendForm(prev => ({ ...prev, amount: text }))}
+              keyboardType="numeric"
+            />
+
+            <View style={styles.modalButtons}>
+              <Button
+                style={styles.modalButton}
+                appearance="outline"
+                onPress={closeSendModal}
+                disabled={sendingTransaction}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                style={styles.modalButton}
+                status="success"
+                onPress={handleSendTransaction}
+                disabled={sendingTransaction}
+              >
+                {sendingTransaction ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  'Send'
+                )}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ParallaxScrollView>
   );
 }
@@ -569,4 +720,59 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    margin: 20,
+    borderRadius: 12,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#333',
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 5,
+    marginTop: 10,
+    color: '#333',
+  },
+  fromAddress: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    backgroundColor: '#f5f5f5',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    color: '#666',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    backgroundColor: '#fff',
+    marginBottom: 10,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 10,
+  },
+  modalButton: {
+    flex: 1,
+  }
 });
